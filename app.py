@@ -3,15 +3,27 @@ import pandas as pd
 import plotly.graph_objects as go
 import numpy as np
 
-def calculate_monthly_mortgage(debt, annual_rate, years):
-    if annual_rate == 0:
-        return debt / (years * 12)
+def calculate_mortgage_payment(loan_amount, annual_rate, total_years, interest_only_years):
     monthly_rate = annual_rate / 12
-    num_payments = years * 12
-    return debt * (monthly_rate * (1 + monthly_rate)**num_payments) / ((1 + monthly_rate)**num_payments - 1)
+    total_months = total_years * 12
+    interest_only_months = interest_only_years * 12
+    amortization_months = total_months - interest_only_months
 
-def calculate_house_budget(monthly_mortgage, house_insurance, tax):
-    return monthly_mortgage + house_insurance + tax
+    if amortization_months > 0:
+        monthly_payment = loan_amount * (monthly_rate * (1 + monthly_rate)**amortization_months) / ((1 + monthly_rate)**amortization_months - 1)
+    else:
+        monthly_payment = 0
+
+    return monthly_payment
+
+def calculate_quarterly_interest(loan_amount, annual_rate):
+    return (loan_amount * annual_rate) / 4
+
+def calculate_house_budget(loan_amount, annual_rate, total_years, interest_only_years, house_insurance, tax):
+    monthly_payment = calculate_mortgage_payment(loan_amount, annual_rate, total_years, interest_only_years)
+    quarterly_interest = calculate_quarterly_interest(loan_amount, annual_rate)
+    monthly_interest = quarterly_interest / 3
+    return monthly_payment + monthly_interest + house_insurance + tax
 
 def calculate_apartment_budget(monthly_rent):
     return monthly_rent
@@ -41,20 +53,17 @@ with st.sidebar:
     currency = st.selectbox("Select Currency", ["DKK", "USD", "EUR"])
     
     st.header("House vs Apartment Inputs")
-    down_payment_house = st.number_input(f"House: Down payment (one time)", min_value=0, step=1000, value=50000)
-    mortgage_input_method = st.radio("Mortgage Payment Input Method", ["Calculate", "Manual Input"])
+    house_price = st.number_input(f"House: Total price", min_value=0, step=10000, value=500000)
+    down_payment = st.number_input(f"House: Down payment", min_value=0, step=10000, value=100000)
+    loan_amount = house_price - down_payment
+    st.write(f"Loan amount: {format_currency(loan_amount, currency)}")
     
-    if mortgage_input_method == "Calculate":
-        debt = st.number_input(f"House: Total mortgage debt", min_value=0, step=1000, value=300000)
-        rate = st.slider("Mortgage interest rate (%)", min_value=0.0, max_value=10.0, value=4.0, step=0.1) / 100
-        loan_years = st.slider("Loan term (years)", min_value=1, max_value=30, value=30)
-        monthly_mortgage = calculate_monthly_mortgage(debt, rate, loan_years)
-    else:
-        monthly_mortgage = st.number_input(f"House: Monthly mortgage payment", min_value=0, step=100, value=1500)
+    annual_rate = st.slider("Mortgage interest rate (%)", min_value=0.0, max_value=10.0, value=4.0, step=0.1) / 100
+    total_years = st.slider("Total loan term (years)", min_value=1, max_value=30, value=30)
+    interest_only_years = st.slider("Interest-only period (years)", min_value=0, max_value=min(10, total_years), value=0)
     
     house_insurance = st.number_input(f"House: Insurance (per month)", min_value=0, step=10, value=100)
     tax = st.number_input(f"House: Property tax (per month)", min_value=0, step=10, value=200)
-    price_house = st.number_input(f"House: Price", min_value=0, step=1000, value=350000)
     
     monthly_rent = st.number_input(f"Apartment: Monthly rent", min_value=0, step=100, value=2000)
     
@@ -65,7 +74,7 @@ with st.sidebar:
     years = st.slider("Number of years to project", min_value=1, max_value=30, value=10)
 
 # Calculate budgets
-house_budget = calculate_house_budget(monthly_mortgage, house_insurance, tax)
+house_budget = calculate_house_budget(loan_amount, annual_rate, total_years, interest_only_years, house_insurance, tax)
 apartment_budget = calculate_apartment_budget(monthly_rent)
 
 # Create comparison dataframe for housing
@@ -93,11 +102,20 @@ st.plotly_chart(fig_housing, use_container_width=True)
 col1, col2 = st.columns(2)
 with col1:
     st.subheader("House Costs")
+    monthly_payment = calculate_mortgage_payment(loan_amount, annual_rate, total_years, interest_only_years)
+    quarterly_interest = calculate_quarterly_interest(loan_amount, annual_rate)
+    monthly_interest = quarterly_interest / 3
+    
     st.write(f"Total monthly cost: {format_currency(house_budget, currency)}")
-    st.write(f"Down payment: {format_currency(down_payment_house, currency)}")
-    st.write(f"Monthly mortgage: {format_currency(monthly_mortgage, currency)}")
+    st.write(f"Down payment: {format_currency(down_payment, currency)}")
+    st.write(f"Monthly mortgage payment: {format_currency(monthly_payment, currency)}")
+    st.write(f"Monthly interest (avg): {format_currency(monthly_interest, currency)}")
     st.write(f"Insurance: {format_currency(house_insurance, currency)}")
     st.write(f"Property tax: {format_currency(tax, currency)}")
+    
+    if interest_only_years > 0:
+        st.write(f"Interest-only period: {interest_only_years} years")
+        st.write(f"Full mortgage payments start after {interest_only_years} years")
 
 with col2:
     st.subheader("Apartment Costs")
