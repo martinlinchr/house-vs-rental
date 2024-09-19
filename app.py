@@ -16,14 +16,17 @@ def calculate_mortgage_payment(loan_amount, annual_rate, total_years, interest_o
 
     return monthly_payment
 
-def calculate_quarterly_interest(loan_amount, annual_rate):
-    return (loan_amount * annual_rate) / 4
+def calculate_monthly_interest(loan_amount, annual_rate):
+    return (loan_amount * annual_rate) / 12
 
 def calculate_house_budget(loan_amount, annual_rate, total_years, interest_only_years, house_insurance, tax):
     monthly_payment = calculate_mortgage_payment(loan_amount, annual_rate, total_years, interest_only_years)
-    quarterly_interest = calculate_quarterly_interest(loan_amount, annual_rate)
-    monthly_interest = quarterly_interest / 3
-    return monthly_payment + monthly_interest + house_insurance + tax
+    monthly_interest = calculate_monthly_interest(loan_amount, annual_rate)
+    
+    if interest_only_years > 0:
+        return monthly_interest + house_insurance + tax
+    else:
+        return monthly_payment + house_insurance + tax
 
 def calculate_apartment_budget(monthly_rent):
     return monthly_rent
@@ -103,19 +106,25 @@ col1, col2 = st.columns(2)
 with col1:
     st.subheader("House Costs")
     monthly_payment = calculate_mortgage_payment(loan_amount, annual_rate, total_years, interest_only_years)
-    quarterly_interest = calculate_quarterly_interest(loan_amount, annual_rate)
-    monthly_interest = quarterly_interest / 3
+    monthly_interest = calculate_monthly_interest(loan_amount, annual_rate)
     
     st.write(f"Total monthly cost: {format_currency(house_budget, currency)}")
     st.write(f"Down payment: {format_currency(down_payment, currency)}")
-    st.write(f"Monthly mortgage payment: {format_currency(monthly_payment, currency)}")
-    st.write(f"Monthly interest (avg): {format_currency(monthly_interest, currency)}")
+    if interest_only_years > 0:
+        st.write(f"Monthly interest payment: {format_currency(monthly_interest, currency)}")
+        st.write(f"Monthly principal payment: {format_currency(0, currency)} (during interest-only period)")
+    else:
+        st.write(f"Monthly mortgage payment: {format_currency(monthly_payment, currency)}")
+        st.write(f"  - Principal: {format_currency(monthly_payment - monthly_interest, currency)}")
+        st.write(f"  - Interest: {format_currency(monthly_interest, currency)}")
     st.write(f"Insurance: {format_currency(house_insurance, currency)}")
     st.write(f"Property tax: {format_currency(tax, currency)}")
     
     if interest_only_years > 0:
         st.write(f"Interest-only period: {interest_only_years} years")
         st.write(f"Full mortgage payments start after {interest_only_years} years")
+        future_payment = calculate_mortgage_payment(loan_amount, annual_rate, total_years - interest_only_years, 0)
+        st.write(f"Future monthly payment after interest-only period: {format_currency(future_payment, currency)}")
 
 with col2:
     st.subheader("Apartment Costs")
