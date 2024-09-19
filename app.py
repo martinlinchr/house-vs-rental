@@ -1,71 +1,83 @@
 import streamlit as st
 import pandas as pd
 import plotly.graph_objects as go
+import numpy as np
 
-def calculate_house_budget(down_payment, monthly_down_payment, house_insurance, tax, debt, price_house, rate):
-    monthly_debt_payment = (debt * rate / 12) / (1 - (1 + rate / 12) ** -360)
-    total_monthly_cost = monthly_down_payment + house_insurance + tax + monthly_debt_payment
-    return total_monthly_cost
+def calculate_savings_growth(monthly_savings, initial_savings, months, annual_interest_rate):
+    monthly_interest_rate = annual_interest_rate / 12
+    savings = [initial_savings]
+    for _ in range(1, months + 1):
+        new_balance = savings[-1] * (1 + monthly_interest_rate) + monthly_savings
+        savings.append(new_balance)
+    return savings
 
-def calculate_apartment_budget(monthly_rent, down_payment):
-    return monthly_rent
+st.set_page_config(layout="wide")
+st.title("Savings Comparison: Monthly Savings vs Initial Lump Sum")
 
-st.title("House vs Apartment Budget Comparison")
+# Sidebar for user inputs
+with st.sidebar:
+    st.header("Input Parameters")
+    monthly_savings = st.number_input("Monthly savings amount", min_value=0.0, value=500.0, step=100.0)
+    initial_lump_sum = st.number_input("Initial lump sum", min_value=0.0, value=300000.0, step=1000.0)
+    annual_interest_rate = st.slider("Annual interest rate (%)", min_value=0.0, max_value=10.0, value=2.0, step=0.1) / 100
+    years = st.slider("Number of years to project", min_value=1, max_value=30, value=10)
 
-# User inputs for House budget
-st.header("House Budget")
-down_payment_house = st.number_input("Down payment (one time)", min_value=0.0, step=1000.0)
-monthly_down_payment = st.number_input("Monthly down payment", min_value=0.0, step=100.0)
-house_insurance = st.number_input("House insurance (per month)", min_value=0.0, step=10.0)
-tax = st.number_input("Tax (per month)", min_value=0.0, step=10.0)
-debt = st.number_input("Debt in total", min_value=0.0, step=1000.0)
-price_house = st.number_input("Price of house", min_value=0.0, step=1000.0)
-rate = 0.04  # 4% flat rate
+# Calculate savings growth for both scenarios
+months = years * 12
+monthly_savings_growth = calculate_savings_growth(monthly_savings, 0, months, annual_interest_rate)
+lump_sum_growth = calculate_savings_growth(0, initial_lump_sum, months, annual_interest_rate)
 
-# User inputs for Apartment budget
-st.header("Apartment Budget")
-monthly_rent = st.number_input("Monthly rent", min_value=0.0, step=100.0)
-down_payment_apartment = st.number_input("Down payment for apartment (one time)", min_value=0.0, step=1000.0)
-
-# Savings input
-savings_goal = st.number_input("Monthly savings goal", min_value=0.0, step=100.0)
-
-# Calculate budgets
-house_budget = calculate_house_budget(down_payment_house, monthly_down_payment, house_insurance, tax, debt, price_house, rate)
-apartment_budget = calculate_apartment_budget(monthly_rent, down_payment_apartment)
-
-# Create comparison dataframe
-comparison_df = pd.DataFrame({
-    'Category': ['House', 'Apartment'],
-    'Monthly Cost': [house_budget, apartment_budget]
+# Create DataFrame for plotting
+df = pd.DataFrame({
+    'Month': range(months + 1),
+    'Monthly Savings': monthly_savings_growth,
+    'Initial Lump Sum': lump_sum_growth
 })
 
 # Create interactive graph
-fig = go.Figure(data=[
-    go.Bar(name='Monthly Cost', x=comparison_df['Category'], y=comparison_df['Monthly Cost'])
-])
+fig = go.Figure()
+fig.add_trace(go.Scatter(x=df['Month'], y=df['Monthly Savings'], mode='lines', name='Monthly Savings'))
+fig.add_trace(go.Scatter(x=df['Month'], y=df['Initial Lump Sum'], mode='lines', name='Initial Lump Sum'))
 
-fig.update_layout(title='House vs Apartment: Monthly Cost Comparison',
-                  xaxis_title='Category',
-                  yaxis_title='Monthly Cost ($)')
+fig.update_layout(
+    title='Savings Growth Comparison',
+    xaxis_title='Month',
+    yaxis_title='Total Savings ($)',
+    legend_title='Scenario',
+    height=600
+)
 
-st.plotly_chart(fig)
+# Display the graph
+st.plotly_chart(fig, use_container_width=True)
 
 # Display additional information
-st.header("Additional Information")
-st.write(f"Total monthly cost for house: ${house_budget:.2f}")
-st.write(f"Total monthly cost for apartment: ${apartment_budget:.2f}")
-st.write(f"Difference in monthly cost: ${abs(house_budget - apartment_budget):.2f}")
+col1, col2 = st.columns(2)
 
-if house_budget > apartment_budget:
-    st.write(f"Living in a house is ${house_budget - apartment_budget:.2f} more expensive per month.")
+with col1:
+    st.subheader("Monthly Savings Scenario")
+    st.write(f"Monthly contribution: ${monthly_savings:.2f}")
+    st.write(f"Total saved after {years} years: ${monthly_savings_growth[-1]:.2f}")
+    st.write(f"Total contributions: ${monthly_savings * months:.2f}")
+    st.write(f"Interest earned: ${monthly_savings_growth[-1] - (monthly_savings * months):.2f}")
+
+with col2:
+    st.subheader("Initial Lump Sum Scenario")
+    st.write(f"Initial investment: ${initial_lump_sum:.2f}")
+    st.write(f"Total value after {years} years: ${lump_sum_growth[-1]:.2f}")
+    st.write(f"Total contributions: ${initial_lump_sum:.2f}")
+    st.write(f"Interest earned: ${lump_sum_growth[-1] - initial_lump_sum:.2f}")
+
+# Comparison and Advice
+st.subheader("Comparison and Advice")
+if monthly_savings_growth[-1] > lump_sum_growth[-1]:
+    difference = monthly_savings_growth[-1] - lump_sum_growth[-1]
+    st.write(f"The monthly savings approach results in ${difference:.2f} more after {years} years.")
+    st.write("This suggests that regular monthly savings might be more beneficial in the long run.")
+elif lump_sum_growth[-1] > monthly_savings_growth[-1]:
+    difference = lump_sum_growth[-1] - monthly_savings_growth[-1]
+    st.write(f"The initial lump sum approach results in ${difference:.2f} more after {years} years.")
+    st.write("This suggests that investing a larger sum upfront might be more beneficial in this case.")
 else:
-    st.write(f"Living in an apartment is ${apartment_budget - house_budget:.2f} more expensive per month.")
+    st.write("Both approaches yield the same result in this scenario.")
 
-st.write(f"Your monthly savings goal: ${savings_goal:.2f}")
-
-# Advice on down payment vs savings
-if down_payment_house > 0:
-    years_to_save = down_payment_house / (savings_goal * 12)
-    st.write(f"It would take approximately {years_to_save:.1f} years to save the house down payment amount with your current savings goal.")
-    st.write("Consider balancing between increasing your down payment to reduce debt and maintaining a healthy savings buffer.")
+st.write("Remember that this is a simplified model. In reality, factors such as tax implications, risk tolerance, and personal financial situations should be considered when making investment decisions.")
